@@ -303,8 +303,9 @@ class UIBoard(Frame):
 
     def cycle_cache(self, cd):  # Can't show current board!
         global cache_depth
+        print(cd)
         if cd >= 0:
-            display_board = self.board_obj
+            display_board = self.board_obj.board
             self.draw(display_board)
             cache_depth = 0
 
