@@ -1,7 +1,7 @@
 from tkinter import *
 from PIL import ImageTk, Image
 import os
-from Python.chess.game import *
+from game import *
 import math
 import ast
 import threading
