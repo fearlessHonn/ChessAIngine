@@ -42,7 +42,7 @@ class UIBoard(Frame):
         self.temp_rect = None
         self.dnd_img = None
 
-        self.is_flipped = True
+        self.is_flipped = False
 
         self.size = 100
         self.icon_size = 30
@@ -217,7 +217,7 @@ class UIBoard(Frame):
             if not self.temp_rect:
                 self.temp_rect = self.canvas.create_rectangle(self.make_rect(self.ox, self.oy), fill="darkgray", outline="")
                 self.dnd_img = self.imgs_dict[click_board[self.ox][self.oy]]
-                self.canvas.config(cursor="@imgs/dnd_cursor3.cur")
+                self.canvas.config(cursor="@imgs/dnd_cursor.cur")
 
             self.canvas.delete("drag")
             self.canvas.create_image(e.x, e.y, image=self.dnd_img, tags=("drag", "piece"))
@@ -256,7 +256,7 @@ class UIBoard(Frame):
                 if (x, y) != (self.ox, self.oy) and -1 < x < 8 and -1 < y < 8:
                     (px, py) = (self.ox, self.oy)
                     if click_board[px][py][1:] == "_w" and self.board_obj.white_move or click_board[px][py][
-                                                                                       1:] == "_b" and not self.board_obj.white_move:  # Move Execution and engine call
+                                                                                        1:] == "_b" and not self.board_obj.white_move:  # Move Execution and engine call
                         if self.is_flipped:
                             self.board_obj.exec_move((7 - self.ox, 7 - self.oy), (7 - x, 7 - y))
                         else:
@@ -349,6 +349,16 @@ class UIBoard(Frame):
         self.is_flipped = not self.is_flipped
         self.draw()
 
+    def export(self):
+        output = ""
+        for i in range(math.ceil(len(self.board_obj.moves) / 2)):
+            if i * 2 + 1 < len(self.board_obj.moves):
+                output += f"{i + 1}. {self.board_obj.moves[2 * i]} {self.board_obj.moves[2 * i + 1]} "
+            else:
+                output += f"{i + 1}. {self.board_obj.moves[2 * i]}"
+
+        print(output)
+
 
 # self.keys = ["q_w", "r_w", "k_w", "n_w", "b_w", "p_w", "q_b", "r_b", "k_b", "n_b", "b_b", "p_b"]
 imgs = [
@@ -382,12 +392,13 @@ if __name__ == "__main__":
     (off_image) = Image.open("imgs/checkboxwc.png").resize(button_size)
     (off_image) = ImageTk.PhotoImage(off_image)
 
-    arrow = Image.open("imgs/arrow.png").resize((25, 25))
-    right_arrow = ImageTk.PhotoImage(arrow.rotate(90))
-    left_arrow = ImageTk.PhotoImage(arrow.rotate(-90))
+    arrow = Image.open("imgs/arrow.png")
+    right_arrow = ImageTk.PhotoImage(arrow.rotate(180))
+    left_arrow = ImageTk.PhotoImage(arrow)
 
-    flip = Image.open("imgs/flip2.png").resize((30, 30))
-    flip = ImageTk.PhotoImage(flip)
+    flip = ImageTk.PhotoImage(file="imgs/flip.png")
+
+    export = ImageTk.PhotoImage(file="imgs/export.png")
 
     engine_on = BooleanVar()
     engine_box = Checkbutton(root, variable=engine_on, image=off_image, indicatoron=0, selectimage=on_image, bg="#1d1d1d", selectcolor="#1d1d1d", bd=0,
@@ -404,18 +415,17 @@ if __name__ == "__main__":
     progress_bar = board.canvas.create_rectangle(x1, board.top_offset, x1 + 500, board.top_offset + 30, fill="white", outline="black", width=2)
     evaluation_bar = board.canvas.create_rectangle(10, board.top_offset, 40, board.top_offset + 8 * board.size, fill="white", outline="black", width=2)
 
-    x1 = 8 * board.size + board.left_offset - 60
-    x2 = 8 * board.size + board.left_offset - 25
+    x1 = 8 * board.size + board.left_offset - 16
     y1 = 8 * board.size + 1.2 * board.top_offset
-    arrow_left = board.canvas.create_image(x1, y1, image=left_arrow, tags="cycle1")
-    arrow_right = board.canvas.create_image(x2, y1, image=right_arrow, tags="cycle2")
+    arrow_left = board.canvas.create_image(x1 - 25, y1, image=left_arrow, tags="cycle1")
+    arrow_right = board.canvas.create_image(x1, y1, image=right_arrow, tags="cycle2")
     board.canvas.tag_bind("cycle1", "<Button-1>", lambda event: board.cycle_cache(cache_depth - 1))
     board.canvas.tag_bind("cycle2", "<Button-1>", lambda event: board.cycle_cache(cache_depth + 1))
 
-    flip_img = board.canvas.create_image(x1 - 35, y1, image=flip, tags="flip")
+    flip_img = board.canvas.create_image(x1 - 55, y1, image=flip, tags="flip")
     board.canvas.tag_bind("flip", "<Button-1>", lambda event: board.flip())
 
-    dnd_cursor = Image.open("imgs/dnd_cursor2.png")
-    dnd_cursor = ImageTk.PhotoImage(dnd_cursor)
+    export_img = board.canvas.create_image(x1 - 90, y1, image=export, tags="export")
+    board.canvas.tag_bind("export", "<Button-1>", lambda event: board.export())
 
     root.mainloop()
