@@ -42,6 +42,8 @@ class UIBoard(Frame):
         self.temp_rect = None
         self.dnd_img = None
 
+        self.is_flipped = True
+
         self.size = 100
         self.icon_size = 30
         self.canvas_width = columns * self.size
@@ -67,10 +69,15 @@ class UIBoard(Frame):
         self.canvas.pack(side="top", fill="both", expand=True, padx=2, pady=2)
 
     def draw(self, brd=None):
-        brd = self.board_obj.board if brd is None else brd
+        brd = copy.deepcopy(self.board_obj.board) if brd is None else brd
 
         temp = self.canvas.find_withtag("board")
         color = self.color2
+
+        if self.is_flipped:
+            for i in range(len(brd)):
+                brd[i].reverse()
+            brd.reverse()
 
         for x, row in enumerate(brd):
             color = self.color1 if color == self.color2 else self.color2
@@ -123,13 +130,23 @@ class UIBoard(Frame):
     def show_pos_move(self, x, y):
         self.canvas.create_rectangle(self.make_rect(x, y), fill="darkgray", outline="", tags="highl")
 
-        if self.board[x][y] != " ":
-            self.canvas.create_image(self.make_center(x, y), image=self.imgs_dict[self.board[x][y]], tags="highl")
+        show_board = copy.deepcopy(self.board)
 
-            if self.board[x][y][1:] == "_w" and self.board_obj.white_move or self.board[x][y][1:] == "_b" and not self.board_obj.white_move:
-                for item in self.board_obj.legal_moves_of_colour(self.board[x][y][1:]):
-                    if item[0] == (x, y):
+        if self.is_flipped:
+            for i in range(len(show_board)):
+                show_board[i].reverse()
+            show_board.reverse()
+
+        if show_board[x][y] != " ":
+            self.canvas.create_image(self.make_center(x, y), image=self.imgs_dict[show_board[x][y]], tags="highl")
+
+            if show_board[x][y][1:] == "_w" and self.board_obj.white_move or show_board[x][y][1:] == "_b" and not self.board_obj.white_move:
+                for item in self.board_obj.legal_moves_of_colour(show_board[x][y][1:]):
+                    if item[0] == (7 - x, 7 - y) and self.is_flipped or item[0] == (x, y) and not self.is_flipped:
                         (tx, ty) = item[1]
+                        if self.is_flipped:
+                            ty = 7 - ty
+                            tx = 7 - tx
                         mvs.append(self.canvas.create_oval(self.make_rect(tx, ty, 0.35), fill="darkgray", outline=""))
 
         self.canvas.tag_bind("highl", "<Button-1>", self.click)
@@ -137,24 +154,31 @@ class UIBoard(Frame):
 
     def draw_arrows(self, x, y):
         (ox, oy) = (self.ox, self.oy)
-        if str((x, y, ox, oy)) not in self.arrows:
-            self.arrows[str((x, y, ox, oy))] = self.canvas.create_line(self.make_center(x, y), self.make_center(ox, oy),
-                                                                       arrow=FIRST,
-                                                                       arrowshape=(self.arrowsize * 2, 2.25 * self.arrowsize, self.arrowsize),
-                                                                       width=20, fill="#11d611", tags="arrow")
+        if -1 < x < 8 and -1 < y < 8:
+            if str((x, y, ox, oy)) not in self.arrows:
+                self.arrows[str((x, y, ox, oy))] = self.canvas.create_line(self.make_center(x, y), self.make_center(ox, oy),
+                                                                           arrow=FIRST,
+                                                                           arrowshape=(self.arrowsize * 2, 2.25 * self.arrowsize, self.arrowsize),
+                                                                           width=20, fill="#11d611", tags="arrow")
 
-        else:  # Delete arrow if two arrows overlap
-            self.canvas.delete(self.arrows[str((x, y, ox, oy))])
-            del self.arrows[str((x, y, ox, oy))]
+            else:  # Delete arrow if two arrows overlap
+                self.canvas.delete(self.arrows[str((x, y, ox, oy))])
+                del self.arrows[str((x, y, ox, oy))]
 
     def create_markers(self, x, y):
+        mark_board = copy.deepcopy(self.board)
+
+        if self.is_flipped:
+            for i in range(len(mark_board)):
+                mark_board[i].reverse()
+            mark_board.reverse()
+
         if self.mrkrs[x][y] == (0, 0):  # Marking squares
 
             color = "darkorange" if (x + y) % 2 == 1 else "orange"
             c = self.canvas.create_rectangle(self.make_rect(x, y), fill=color, outline="", tags="marker")
 
-            d = self.canvas.create_image(self.make_center(x, y), image=self.imgs_dict[self.board[x][y]], tags="marker") if self.board[x][
-
+            d = self.canvas.create_image(self.make_center(x, y), image=self.imgs_dict[mark_board[x][y]], tags="marker") if mark_board[x][
                                                                                                                                y] != " " else None
             self.canvas.tag_bind("marker", "<Button-1>", self.click)
             self.canvas.tag_bind("marker", "<Button-3>", self.click)
@@ -183,10 +207,16 @@ class UIBoard(Frame):
         x = int(math.floor((e.x - self.left_offset) / self.size))
         y = int(math.floor((e.y - self.top_offset) / self.size))
 
+        click_board = copy.deepcopy(self.board)
+        if self.is_flipped:
+            for i in range(len(click_board)):
+                click_board[i].reverse()
+            click_board.reverse()
+
         if str(e.type) == "Motion":  # Dragging animation
             if not self.temp_rect:
                 self.temp_rect = self.canvas.create_rectangle(self.make_rect(self.ox, self.oy), fill="darkgray", outline="")
-                self.dnd_img = self.imgs_dict[self.board[self.ox][self.oy]]
+                self.dnd_img = self.imgs_dict[click_board[self.ox][self.oy]]
                 self.canvas.config(cursor="@imgs/dnd_cursor3.cur")
 
             self.canvas.delete("drag")
@@ -222,16 +252,18 @@ class UIBoard(Frame):
                 self.temp_rect = None
                 self.canvas.delete("drag")
                 self.canvas.config(cursor="")
-                # self.click(e)  # Problem when dragging pieces of board!
 
                 if (x, y) != (self.ox, self.oy) and -1 < x < 8 and -1 < y < 8:
                     (px, py) = (self.ox, self.oy)
-                    if self.board[px][py][1:] == "_w" and self.board_obj.white_move or self.board[px][py][
+                    if click_board[px][py][1:] == "_w" and self.board_obj.white_move or click_board[px][py][
                                                                                        1:] == "_b" and not self.board_obj.white_move:  # Move Execution and engine call
-                        self.board_obj.exec_move((self.ox, self.oy), (x, y))
+                        if self.is_flipped:
+                            self.board_obj.exec_move((7 - self.ox, 7 - self.oy), (7 - x, 7 - y))
+                        else:
+                            self.board_obj.exec_move((self.ox, self.oy), (x, y))
                         self.draw()
                         if self.board_obj.game_end():
-                            return
+                            self.canvas.create_text(1000, 500, text=self.board_obj.game_end())
 
                         if not self.board_obj.white_move and engine_on.get():
                             self.engine_thread = threading.Thread(target=self.start_engine)
@@ -303,7 +335,6 @@ class UIBoard(Frame):
 
     def cycle_cache(self, cd):  # Can't show current board!
         global cache_depth
-        print(cd)
         if cd >= 0:
             display_board = self.board_obj.board
             self.draw(display_board)
@@ -313,6 +344,10 @@ class UIBoard(Frame):
             display_board = self.board_obj.cache[cd][0]
             self.draw(display_board)
             cache_depth = cd
+
+    def flip(self):
+        self.is_flipped = not self.is_flipped
+        self.draw()
 
 
 # self.keys = ["q_w", "r_w", "k_w", "n_w", "b_w", "p_w", "q_b", "r_b", "k_b", "n_b", "b_b", "p_b"]
@@ -351,6 +386,9 @@ if __name__ == "__main__":
     right_arrow = ImageTk.PhotoImage(arrow.rotate(90))
     left_arrow = ImageTk.PhotoImage(arrow.rotate(-90))
 
+    flip = Image.open("imgs/flip2.png").resize((30, 30))
+    flip = ImageTk.PhotoImage(flip)
+
     engine_on = BooleanVar()
     engine_box = Checkbutton(root, variable=engine_on, image=off_image, indicatoron=0, selectimage=on_image, bg="#1d1d1d", selectcolor="#1d1d1d", bd=0,
                              activebackground="#1d1d1d", state=engine_allowed, cursor="hand2")
@@ -373,6 +411,9 @@ if __name__ == "__main__":
     arrow_right = board.canvas.create_image(x2, y1, image=right_arrow, tags="cycle2")
     board.canvas.tag_bind("cycle1", "<Button-1>", lambda event: board.cycle_cache(cache_depth - 1))
     board.canvas.tag_bind("cycle2", "<Button-1>", lambda event: board.cycle_cache(cache_depth + 1))
+
+    flip_img = board.canvas.create_image(x1 - 35, y1, image=flip, tags="flip")
+    board.canvas.tag_bind("flip", "<Button-1>", lambda event: board.flip())
 
     dnd_cursor = Image.open("imgs/dnd_cursor2.png")
     dnd_cursor = ImageTk.PhotoImage(dnd_cursor)
