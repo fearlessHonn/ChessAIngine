@@ -286,22 +286,22 @@ class Board:
     def game_end(self):
         if not self.white_legal_moves:
             if self.in_check(self.board, "_w", self.white_king):
-                return "Black won by checkmate"
+                return "black"
             else:
-                return "Draw by stalemate"
+                return "draw"
 
         if not self.black_legal_moves:
             if self.in_check(self.board, "_b", self.black_king):
-                return "White won by checkmate"
+                return "white"
             else:
-                return "Draw by stalemate"
+                return "draw"
 
         if self.no_cap >= 50:
-            return "Draw by 50 move rule"
+            return "draw"
 
         for state in self.cache:
             if self.cache.count(state) >= 3:
-                return "Draw by repetition"
+                return "draw"
 
     def undo_move(self):
         self.board = self.cache[-1][0]
@@ -344,11 +344,13 @@ class Board:
 def engine(board_obj, depth):
     global total_moves
 
+    colour = board_obj.white_move
+
     total_moves = 0
     best_move = None
-    max_score = math.inf
+    max_score = -math.inf if colour else math.inf
 
-    legal_moves = board_obj.sort_moves(board_obj.black_legal_moves)
+    legal_moves = board_obj.sort_moves(board_obj.black_legal_moves) if not colour else board_obj.sort_moves(board_obj.white_legal_moves)
 
     for num, (pos, move) in enumerate(legal_moves):
 
@@ -358,10 +360,10 @@ def engine(board_obj, depth):
 
         total_moves += 1
 
-        move_score = minimax(board_obj, depth - 1, True, -math.inf, math.inf)
+        move_score = minimax(board_obj, depth - 1, board_obj.white_move, -math.inf, math.inf)
         board_obj.undo_move()
 
-        if move_score < max_score:
+        if move_score > max_score and colour or not colour and move_score < max_score:
             max_score = move_score
             best_move = (pos, move)
 

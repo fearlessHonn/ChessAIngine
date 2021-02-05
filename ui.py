@@ -43,6 +43,9 @@ class UIBoard(Frame):
         self.dnd_img = None
 
         self.is_flipped = False
+        self.evaluation = None
+        self.player_is_white = True
+        self.player_active = True
 
         self.size = 100
         self.icon_size = 30
@@ -255,8 +258,7 @@ class UIBoard(Frame):
 
                 if (x, y) != (self.ox, self.oy) and -1 < x < 8 and -1 < y < 8:
                     (px, py) = (self.ox, self.oy)
-                    if click_board[px][py][1:] == "_w" and self.board_obj.white_move or click_board[px][py][
-                                                                                        1:] == "_b" and not self.board_obj.white_move:  # Move Execution and engine call
+                    if self.player_is_white == self.board_obj.white_move:  # Move Execution and engine call
                         if self.is_flipped:
                             self.board_obj.exec_move((7 - self.ox, 7 - self.oy), (7 - x, 7 - y))
                         else:
@@ -265,13 +267,7 @@ class UIBoard(Frame):
                         if self.board_obj.game_end():
                             self.canvas.create_text(1000, 500, text=self.board_obj.game_end())
 
-                        if not self.board_obj.white_move and engine_on.get():
-                            self.engine_thread = threading.Thread(target=self.start_engine)
-                            self.engine_thread.start()
-
-                            self.canvas.delete("progress")
-                            display = threading.Thread(target=self.update_progress)
-                            display.start()
+                        self.engine_move()
 
                         if self.board_obj.game_end():
                             return
@@ -288,6 +284,9 @@ class UIBoard(Frame):
                 else:
                     self.create_markers(x, y)
 
+    def decide_player(self, brd, x, y):
+        return brd[x][y][1:] == "_w" and self.board_obj.white_move != self.is_flipped or brd[x][y][1:] == "_b" and self.board_obj.white_move == self.is_flipped
+
     def make_rect(self, x, y, rad=0.0):
         x = x * self.size + self.left_offset + rad * self.size
         y = y * self.size + self.top_offset + rad * self.size
@@ -300,10 +299,20 @@ class UIBoard(Frame):
         y = y * self.size + self.size / 2 + self.top_offset
         return x, y
 
+    def engine_move(self):
+        if engine_on.get() and self.player_is_white != self.board_obj.white_move:
+            self.engine_thread = threading.Thread(target=self.start_engine)
+            self.engine_thread.start()
+
+            self.canvas.delete("progress")
+            display = threading.Thread(target=self.update_progress)
+            display.start()
+
     def start_engine(self):
         engine_board = copy.deepcopy(self.board_obj)
         result = engine(engine_board, depth.get())
         self.board_obj.exec_move(result[0][0], result[0][1])
+        self.evaluation = result[1]
         self.draw()
         del engine_board
         return
@@ -331,7 +340,9 @@ class UIBoard(Frame):
         try:
             self.canvas.delete(self.eval)
         finally:
-            self.eval = self.canvas.create_rectangle(10, self.top_offset, 40, self.top_offset - 20 * evaluation(self.board_obj) + 4 * self.size, fill="black")
+            self.evaluation = evaluation(self.board_obj) if not self.evaluation else self.evaluation
+            self.eval = self.canvas.create_rectangle(10, self.top_offset, 40, self.top_offset - 20 * self.evaluation + 4 * self.size, fill="black")
+            self.evaluation = None
 
     def cycle_cache(self, cd):  # Can't show current board!
         global cache_depth
@@ -347,14 +358,16 @@ class UIBoard(Frame):
 
     def flip(self):
         self.is_flipped = not self.is_flipped
+        self.player_is_white = not self.player_is_white
         self.draw()
+        self.engine_move()
 
     def export(self):
         output = ""
         for i in range(math.ceil(len(self.board_obj.moves) / 2)):
-            if i * 2 + 1 < len(self.board_obj.moves):
-                output += f"{i + 1}. {self.board_obj.moves[2 * i]} {self.board_obj.moves[2 * i + 1]} "
-            else:
+            try:
+                output += f"{i + 1}. {self.board_obj.moves[2 * i]} {self.board_obj.moves[2 * i + 1]} \n"
+            except IndexError:
                 output += f"{i + 1}. {self.board_obj.moves[2 * i]}"
 
         print(output)
@@ -410,6 +423,12 @@ if __name__ == "__main__":
     depth.set(depths[0])
     choose_depth = OptionMenu(root, depth, *depths)
     choose_depth.place(x=8 * board.size + 3 * board.left_offset + button_size[0], y=board.top_offset)
+
+    # engine_colour = ["Black", "White"]
+    # eng_clr = StringVar()
+    # eng_clr.set(engine_colour[0])
+    # choose_colour = OptionMenu(root, eng_clr, *engine_colour)
+    # choose_colour.place(x=8 * board.size + 3 * board.left_offset + button_size[0], y=board.top_offset + 40)
 
     x1 = 8 * board.size + 5 * board.left_offset + button_size[0]
     progress_bar = board.canvas.create_rectangle(x1, board.top_offset, x1 + 500, board.top_offset + 30, fill="white", outline="black", width=2)
