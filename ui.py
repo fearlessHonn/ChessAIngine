@@ -257,20 +257,20 @@ class UIBoard(Frame):
                 self.canvas.config(cursor="")
 
                 if (x, y) != (self.ox, self.oy) and -1 < x < 8 and -1 < y < 8:
-                    (px, py) = (self.ox, self.oy)
-                    if self.player_is_white == self.board_obj.white_move:  # Move Execution and engine call
+                    if self.player_is_white == self.board_obj.white_move or not engine_on.get():  # Move Execution and engine call
                         if self.is_flipped:
                             self.board_obj.exec_move((7 - self.ox, 7 - self.oy), (7 - x, 7 - y))
                         else:
                             self.board_obj.exec_move((self.ox, self.oy), (x, y))
+
                         self.draw()
-                        if self.board_obj.game_end():
-                            self.canvas.create_text(1000, 500, text=self.board_obj.game_end())
 
-                        self.engine_move()
+                        game_end = self.board_obj.game_end()
+                        if game_end:
+                            self.canvas.create_text(1000, 500, text=game_end)
 
-                        if self.board_obj.game_end():
-                            return
+                        else:
+                            self.engine_move()
 
         elif e.num == 3:  # Save position for arrow drawing
             if str(e.type) == "ButtonPress":
@@ -307,6 +307,10 @@ class UIBoard(Frame):
             self.canvas.delete("progress")
             display = threading.Thread(target=self.update_progress)
             display.start()
+
+            game_end = self.board_obj.game_end()
+            if game_end:
+                self.canvas.create_text(1000, 500, text=game_end)
 
     def start_engine(self):
         engine_board = copy.deepcopy(self.board_obj)
@@ -423,12 +427,6 @@ if __name__ == "__main__":
     depth.set(depths[0])
     choose_depth = OptionMenu(root, depth, *depths)
     choose_depth.place(x=8 * board.size + 3 * board.left_offset + button_size[0], y=board.top_offset)
-
-    # engine_colour = ["Black", "White"]
-    # eng_clr = StringVar()
-    # eng_clr.set(engine_colour[0])
-    # choose_colour = OptionMenu(root, eng_clr, *engine_colour)
-    # choose_colour.place(x=8 * board.size + 3 * board.left_offset + button_size[0], y=board.top_offset + 40)
 
     x1 = 8 * board.size + 5 * board.left_offset + button_size[0]
     progress_bar = board.canvas.create_rectangle(x1, board.top_offset, x1 + 500, board.top_offset + 30, fill="white", outline="black", width=2)
