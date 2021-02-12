@@ -21,15 +21,14 @@ class MaxWin(Tk):
 
 
 class UIBoard(Frame):
-    def __init__(self, parent, rows=8, columns=8, color1="white", color2="#2f2f2f"):
+    def __init__(self, parent):
         global imgs
 
         self.board_obj = Board()
         self.board = self.board_obj.board
-        self.rows = rows
-        self.columns = columns
-        self.color1 = color1
-        self.color2 = color2
+        self.rows = 8
+        self.color1 = "white"
+        self.color2 = "#2f2f2f"
 
         self.mrkrs = [[(0, 0)] * 8 for _ in range(8)]
         self.arrows = {}
@@ -49,8 +48,8 @@ class UIBoard(Frame):
 
         self.size = 100
         self.icon_size = 30
-        self.canvas_width = columns * self.size
-        self.canvas_height = rows * self.size
+        self.canvas_width = 8 * self.size
+        self.canvas_height = 8 * self.size
         self.top_offset = (1013 - 8 * self.size) / 2
         self.left_offset = 50
 
@@ -257,20 +256,10 @@ class UIBoard(Frame):
                 self.canvas.config(cursor="")
 
                 if (x, y) != (self.ox, self.oy) and -1 < x < 8 and -1 < y < 8:
-                    if self.player_is_white == self.board_obj.white_move or not engine_on.get():  # Move Execution and engine call
-                        if self.is_flipped:
-                            self.board_obj.exec_move((7 - self.ox, 7 - self.oy), (7 - x, 7 - y))
-                        else:
-                            self.board_obj.exec_move((self.ox, self.oy), (x, y))
-
-                        self.draw()
-
-                        game_end = self.board_obj.game_end()
-                        if game_end:
-                            self.canvas.create_text(1000, 500, text=game_end)
-
-                        else:
-                            self.engine_move()
+                    if self.is_flipped:
+                        self.make_move(True, (7 - self.ox, 7 - self.oy), (7 - x, 7 - y))
+                    else:
+                        self.make_move(True, (self.ox, self.oy), (x, y))
 
         elif e.num == 3:  # Save position for arrow drawing
             if str(e.type) == "ButtonPress":
@@ -284,9 +273,6 @@ class UIBoard(Frame):
                 else:
                     self.create_markers(x, y)
 
-    def decide_player(self, brd, x, y):
-        return brd[x][y][1:] == "_w" and self.board_obj.white_move != self.is_flipped or brd[x][y][1:] == "_b" and self.board_obj.white_move == self.is_flipped
-
     def make_rect(self, x, y, rad=0.0):
         x = x * self.size + self.left_offset + rad * self.size
         y = y * self.size + self.top_offset + rad * self.size
@@ -298,28 +284,6 @@ class UIBoard(Frame):
         x = x * self.size + self.size / 2 + self.left_offset
         y = y * self.size + self.size / 2 + self.top_offset
         return x, y
-
-    def engine_move(self):
-        if engine_on.get() and self.player_is_white != self.board_obj.white_move:
-            self.engine_thread = threading.Thread(target=self.start_engine)
-            self.engine_thread.start()
-
-            self.canvas.delete("progress")
-            display = threading.Thread(target=self.update_progress)
-            display.start()
-
-            game_end = self.board_obj.game_end()
-            if game_end:
-                self.canvas.create_text(1000, 500, text=game_end)
-
-    def start_engine(self):
-        engine_board = copy.deepcopy(self.board_obj)
-        result = engine(engine_board, depth.get())
-        self.board_obj.exec_move(result[0][0], result[0][1])
-        self.evaluation = result[1]
-        self.draw()
-        del engine_board
-        return
 
     def update_progress(self):  # Hässliches Stück Scheiße
         last_prog = None
@@ -364,7 +328,6 @@ class UIBoard(Frame):
         self.is_flipped = not self.is_flipped
         self.player_is_white = not self.player_is_white
         self.draw()
-        self.engine_move()
 
     def export(self):
         output = ""
@@ -375,6 +338,37 @@ class UIBoard(Frame):
                 output += f"{i + 1}. {self.board_obj.moves[2 * i]}"
 
         print(output)
+
+    def make_move(self, player=False, position=None, move=None):
+        if not player and (engine_on.get() and self.board_obj.white_move != self.player_is_white or ccc.get()):
+
+            self.engine_thread = threading.Thread(target=self.start_engine)
+            self.engine_thread.start()
+
+            self.canvas.delete("progress")
+            display = threading.Thread(target=self.update_progress)
+            display.start()
+
+            display.join()
+
+        elif player and self.board_obj.white_move == self.player_is_white or not engine_on.get():
+            self.board_obj.exec_move(position, move)
+
+        self.draw()
+        if self.board_obj.game_end():
+            return False
+
+        elif ccc.get() or engine_on.get() and player:
+            self.make_move()
+
+    def start_engine(self):
+        engine_board = copy.deepcopy(self.board_obj)
+        result = engine(engine_board, depth.get())
+        self.board_obj.exec_move(result[0][0], result[0][1])
+        self.evaluation = result[1]
+        self.draw()
+        del engine_board
+        return
 
 
 # self.keys = ["q_w", "r_w", "k_w", "n_w", "b_w", "p_w", "q_b", "r_b", "k_b", "n_b", "b_b", "p_b"]
@@ -421,6 +415,9 @@ if __name__ == "__main__":
     engine_box = Checkbutton(root, variable=engine_on, image=off_image, indicatoron=0, selectimage=on_image, bg="#1d1d1d", selectcolor="#1d1d1d", bd=0,
                              activebackground="#1d1d1d", state=engine_allowed, cursor="hand2")
     engine_box.place(x=8 * board.size + 2 * board.left_offset, y=board.top_offset)
+
+    ccc = BooleanVar()
+    eve = Checkbutton(root, variable=ccc).pack()
 
     depths = [2, 3, 4]
     depth = IntVar()
