@@ -46,6 +46,8 @@ class UIBoard(Frame):
         self.player_is_white = True
         self.player_active = True
 
+        self.block = False
+
         self.size = 100
         self.icon_size = 30
         self.canvas_width = 8 * self.size
@@ -221,6 +223,7 @@ class UIBoard(Frame):
             click_board.reverse()
 
         if str(e.type) == "Motion":  # Dragging animation
+            self.block = True
             if not self.temp_rect:
                 self.temp_rect = self.canvas.create_rectangle(self.make_rect(self.ox, self.oy), fill="darkgray", outline="")
                 self.dnd_img = self.imgs_dict[click_board[self.ox][self.oy]]
@@ -244,6 +247,7 @@ class UIBoard(Frame):
                 self.show_pos_move(self.ox, self.oy)  # Show possible moves and mark square/piece
 
             elif str(e.type) == "ButtonRelease":
+                self.block = False
                 self.canvas.delete("highl")  # Delete possible moves and trageted square/piece
 
                 self.canvas.delete("arrow")
@@ -266,7 +270,7 @@ class UIBoard(Frame):
                     else:
                         self.make_move(True, (self.ox, self.oy), (x, y))
 
-        elif e.num == 3:  # Save position for arrow drawing
+        elif e.num == 3 and not self.block:  # Save position for arrow drawing
             if str(e.type) == "ButtonPress":
                 self.ox = int(math.floor((e.x - self.left_offset) / self.size))
                 self.oy = int(math.floor((e.y - self.top_offset) / self.size))
