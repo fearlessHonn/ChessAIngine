@@ -10,17 +10,10 @@ from dicts import *
 import math
 import copy
 from queue import Queue
-import time
 
 targets = init_targets()
 player_moved = False
-total_moves = 0
 q = Queue()
-gen_time = 0
-end_time = 0
-undo_time = 0
-exc_time = 0
-gen_times = []
 
 
 def convert_to_acn(coord):
@@ -105,9 +98,9 @@ class Board:
         king_pos = self.white_king if colour == "_w" else self.black_king
 
         pinned = dict()
-        for piece in ("q", "r", "b"):
+        for piece in ("r", "b"):
             for tx, ty in targets[piece][king_pos]:
-                if self.board[tx][ty] != piece + opponent:
+                if self.board[tx][ty] not in (piece + opponent, "q" + opponent):
                     continue
                 span = [self.board[sx][sy][1:] for sx, sy in targets[tx, ty][king_pos]]
                 if span.count(colour) == 1 and opponent not in span:
@@ -139,9 +132,8 @@ class Board:
         if target[1] in (0, 7) and piece == "p":
             output += "=Q"
 
-        if self.game_end():
-            if "checkmate" in self.game_end():
-                output += "#"
+        if self.black_check and not self.black_legal_moves or self.white_check and not self.white_legal_moves:
+            output += "#"
         elif self.black_check and colour == "_w" or self.white_check and colour == "_b":
             output += "+"
 
@@ -151,38 +143,72 @@ class Board:
     def line_of_sight(board, a, b, ignore=None):
         return all(board[x][y] == " " or (x, y) == ignore for x, y in targets[a][b])
 
-    def in_check(self, board, colour, king_pos=None, ignore=None):
-
+    def in_check(self, board, colour, king_pos=None):
         if king_pos is None:
             king_pos = self.white_king if colour == "_w" else self.black_king
 
-        paths = ("q", "r", "b", "n", f"{colour[1]}p!")
-        return any(board[x][y][:1] == path
-                   and board[x][y][1:] != colour
-                   and self.line_of_sight(board, king_pos, (x, y), ignore)
-                   for path in paths
-                   for x, y in targets[path][king_pos])
+        opponent = "_b" if colour == "_w" else "_w"
+
+        paths_dict = {
+            "up": "rq",
+            "down": "rq",
+            "left": "rq",
+            "right": "rq",
+            "upleft": "bq",
+            "upright": "bq",
+            "downleft": "bq",
+            "downright": "bq",
+        }
+
+        for path in paths_dict.keys():
+            for x, y in targets[path][king_pos]:
+                if board[x][y][1:] == colour:
+                    break
+
+                elif board[x][y][:1] in paths_dict[path]:
+                    return True
+
+        for x, y in targets["n"][king_pos]:
+            if board[x][y][1:] == opponent:
+                if board[x][y][:1] == "n":
+                    return True
+
+        for x, y in targets[f"{colour[1]}p!"][king_pos]:
+            if board[x][y] == "p" + opponent:
+                return True
 
     def allowed_move(self, pos, move, colour):
-
-        copy_board = copy.deepcopy(self.board)
-
         (x, y) = pos
-        (new_x, new_y) = move
+        (tx, ty) = move
+        target_piece = self.board[tx][ty]
 
-        copy_board[new_x][new_y] = copy_board[x][y]
-        king_pos = self.white_king if colour == "_w" else self.black_king
+        self.board[tx][ty] = self.board[x][y]
+        self.board[x][y] = " "
 
-        if copy_board[x][y][:1] == "k":
-            king_pos = (new_x, new_y)
+        if self.board[x][y][:1] == "k":
+            if colour == "_w":
+                self.white_king = (tx, ty)
 
-        copy_board[x][y] = " "
+            if colour == "_b":
+                self.black_king = (tx, ty)
 
-        return not self.in_check(copy_board, colour, king_pos)
+        enpa = False
+        if (tx, ty) == self.en_passant:  # en passant handling
+            target_piece = self.board[tx][y]
+            self.board[tx][y] = " "
+            enpa = True
+
+        check = self.in_check(self.board, colour)
+
+        self.board[x][y] = self.board[tx][ty]
+        self.board[tx][ty] = target_piece
+
+        if enpa:
+            self.board[tx][y] = target_piece
+
+        return not check
 
     def exec_move(self, position, move):
-        global exc_time
-        start_time = time.time()
         (x, y) = position
         colour = self.board[x][y][1:]
         piece = self.board[x][y]
@@ -241,13 +267,11 @@ class Board:
                 self.white_check = self.in_check(self.board, "_w", self.white_king)
                 self.black_check = self.in_check(self.board, "_b", self.black_king)
 
-                self.last_move = ((x, y), (new_x, new_y))
-                self.moves.append(self.convert_to_pgn((new_x, new_y), (x, y), tg_pc, colour, piece))
-
-                exc_time += (time.time() - start_time)
-
                 self.white_legal_moves = self.legal_moves_of_colour("_w")
                 self.black_legal_moves = self.legal_moves_of_colour("_b")
+
+                self.last_move = ((x, y), (new_x, new_y))
+                self.moves.append(self.convert_to_pgn((new_x, new_y), (x, y), tg_pc, colour, piece))
 
                 return True
 
@@ -264,8 +288,6 @@ class Board:
         yield lambda *c: v in c
 
     def legal_moves_of_colour(self, colour):
-        global gen_time
-        start_time = time.time()
 
         moves = []
         opponent = "_b" if colour == "_w" else "_w"
@@ -283,18 +305,21 @@ class Board:
 
                 elif case("p"):
                     moves += [((x, y), (tx, ty)) for tx, ty in targets[colour[1] + piece][x, y] if
-                              self.board[tx][ty] == " " and self.line_of_sight(self.board, (x, y), (tx, ty))]
-                    moves += [((x, y), (tx, ty)) for tx, ty in targets[colour[1] + piece + "!"][x, y] if self.board[tx][ty][1:] == opponent or (tx, ty) == self.en_passant]
+                              self.board[tx][ty] == " " and self.board[x][round((y + ty) / 2)] in ("p" + colour, " ")]
+                    moves += [((x, y), (tx, ty)) for tx, ty in targets[colour[1] + piece + "!"][x, y] if
+                              self.board[tx][ty][1:] == opponent or (tx, ty) == self.en_passant]
 
                 elif case("k"):
                     moves += [((x, y), (tx, ty)) for tx, ty in targets[piece][x, y] if
-                              self.board[tx][ty][1:] != colour and not self.in_check(self.board, colour, (tx, ty), (x, y))]
+                              self.board[tx][ty][1:] != colour and not self.in_check(self.board, colour, (tx, ty))]
                     if self.black_check and colour == "_b" or self.white_check and colour == "_w":
                         continue
                     moves += [((x, y), (tx, ty)) for tx, ty in targets[colour[1:] + "castle"][x, y]
-                              if self.board[tx][ty] == " " and self.line_of_sight(self.board, (x, y), (tx, ty))
-                              and not self.in_check(self.board, colour, (tx, ty), (x, y))
-                              and not self.in_check(self.board, colour, targets[x, y][tx, ty][0], (x, y))
+                              if self.board[tx][ty] == " "
+                              and self.board[int((tx + x) / 2)][ty] == " "
+                              and self.board[tx - 1][ty] in (" ", "r" + colour)
+                              and not self.in_check(self.board, colour, (tx, ty))
+                              and not self.in_check(self.board, colour, targets[x, y][tx, ty][0])
                               and not (tx, ty) in self.brokenCastles]
 
         pinned = self.pinned_positions(colour)
@@ -305,13 +330,9 @@ class Board:
         if self.black_check and colour == "_b" or self.white_check and colour == "_w":
             moves = [(p, t) for p, t in moves if self.allowed_move(p, t, colour)]
 
-        gen_time += (time.time() - start_time)
-
         return moves
 
     def game_end(self):
-        global end_time
-        start_time = time.time()
         if not self.white_legal_moves:
             if self.white_check:
                 return "black"
@@ -331,11 +352,7 @@ class Board:
             if self.cache.count(state) >= 3:
                 return "draw"
 
-        end_time += (time.time() - start_time)
-
     def undo_move(self):
-        global undo_time
-        start_time = time.time()
         self.board = self.cache[-1][0]
         self.material_difference = self.cache[-1][1]
         self.white_move = not self.white_move
@@ -348,49 +365,36 @@ class Board:
         self.last_move = self.cache[-1][8]
         self.cache.pop()
         self.moves.pop()
-        undo_time += (time.time() - start_time)
 
     def sort_moves(self, moves):
         scores_dict = {}
         scores_list = []
         no_cap_moves = []
-        for i, (pos, move) in enumerate(moves):
+        for pos, move in moves:
             (new_x, new_y) = move
             (x, y) = pos
             if self.board[new_x][new_y] != " ":
-                score = mvvlva[str(self.board[x][y][:1])][str(self.board[new_x][new_y][:1])]
-                scores_list.append(score)
-                scores_dict[score] = [(pos, move)]
+                move_score = mvvlva[str(self.board[x][y][:1])][str(self.board[new_x][new_y][:1])]
+                scores_list.append(move_score)
+                scores_dict[move_score] = [(pos, move)]
 
             else:
                 no_cap_moves.append((pos, move))
 
         final_moves = [((int, int), (int, int))] * len(scores_list)
         scores_list.sort(reverse=True)
-        for i, score in enumerate(scores_list):
-            final_moves[i] = scores_dict[score][0]
+        for move_num, move_score in enumerate(scores_list):
+            final_moves[move_num] = scores_dict[move_score][0]
 
         final_moves += no_cap_moves
         return final_moves
 
 
 def engine(board_obj, depth):
-    global total_moves
-    global gen_time
-    global end_time
-    global undo_time
-    global exc_time
-
     colour = board_obj.white_move
 
-    total_moves = 0
     best_move = None
     max_score = -math.inf if colour else math.inf
-    total_time = time.time()
-    gen_time = 0
-    end_time = 0
-    undo_time = 0
-    exc_time = 0
 
     legal_moves = board_obj.sort_moves(board_obj.black_legal_moves) if not colour else board_obj.sort_moves(board_obj.white_legal_moves)
 
@@ -399,8 +403,6 @@ def engine(board_obj, depth):
         if not board_obj.exec_move(pos, move):
             print("NOOOPE" + str(num))
             continue
-
-        total_moves += 1
 
         move_score = minimax(board_obj, depth - 1, board_obj.white_move, -math.inf, math.inf)
         board_obj.undo_move()
@@ -412,27 +414,10 @@ def engine(board_obj, depth):
         progress = ((num + 1) / len(legal_moves))
         q.put(progress)
 
-    # gen_times.append(end_time)
-    # print(f"The generation of all moves took {gen_time} seconds")
-    # print(f"The execution of all moves took {exc_time} seconds")
-    # print(f"The checking for game ends took {end_time} seconds")
-    # print(f"The undoing of all moves took {undo_time} seconds")
-    # print(f"Everything took {time.time() - total_time} seconds \n")
-
-    print(str(round(gen_time, 6)).replace(".", ","))
-    print(str(round(exc_time, 6)).replace(".", ","))
-    print(str(round(end_time, 6)).replace(".", ","))
-    print(str(round(undo_time, 6)).replace(".", ","))
-    print(str(round(time.time() - total_time, 6)).replace(".", ","))
-    print(str(total_moves))
-    print("\n")
-
     return best_move, max_score
 
 
 def minimax(board, depth, is_max, alpha, beta):
-    global total_moves
-
     if board.game_end():
         return scores[board.game_end()]
 
@@ -445,8 +430,6 @@ def minimax(board, depth, is_max, alpha, beta):
 
             if not board.exec_move(pos, move):
                 continue
-
-            total_moves += 1
 
             move_score = minimax(board, depth - 1, False, alpha, beta)
             board.undo_move()
@@ -465,8 +448,6 @@ def minimax(board, depth, is_max, alpha, beta):
             if not board.exec_move(pos, move):
                 continue
 
-            total_moves += 1
-
             move_score = minimax(board, depth - 1, True, alpha, beta)
             board.undo_move()
 
@@ -480,12 +461,12 @@ def minimax(board, depth, is_max, alpha, beta):
 
 
 def evaluation(board):
-    score = board.material_difference
+    eval_score = board.material_difference
 
     if not board.black_check or board.white_check:
-        score += 0.1 * (len(board.white_legal_moves) - len(board.black_legal_moves))
+        eval_score += 0.1 * (len(board.white_legal_moves) - len(board.black_legal_moves))
 
-    return score
+    return eval_score
 
 
 scores = {
@@ -493,3 +474,13 @@ scores = {
     "black": - 1000,
     "draw": 0
 }
+
+if __name__ == "__main__":
+    my_board = Board()
+    i = 0
+    while i < 10:
+        i += 1
+        eng_board = copy.deepcopy(my_board)
+        (eng_pos, eng_move), score = engine(eng_board, 3)
+        my_board.exec_move(eng_pos, eng_move)
+        del eng_board
