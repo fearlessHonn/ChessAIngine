@@ -6,6 +6,7 @@ Project Author: Honn
 """
 
 from pieces import *
+from dicts import *
 import math
 import copy
 from queue import Queue
@@ -45,7 +46,7 @@ class Board:
         self.white_king = None
         self.black_king = None
 
-        self.load_fen("rnbqkbnr/ppppp2p/8/4Ppp1/8/8/PPPP1PPP/RNBQKBNR w KQkq f6 0 1")  # rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
+        self.load_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")  # rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
 
         self.black_legal_moves = self.legal_moves_of_colour("_b")
         self.white_legal_moves = self.legal_moves_of_colour("_w")
@@ -76,7 +77,7 @@ class Board:
                 x += int(position)
 
             elif position == " ":
-                self.white_move = True if fen[num + 1] == "w" else False
+                self.white_move = bool(fen[num + 1] == "w")
                 self.brokenCastles.update([(2, 0), (6, 0), (6, 7), (2, 7)])
                 for num2, position2 in enumerate(fen[(num + 3):]):
                     if position2 == "-":
@@ -104,9 +105,9 @@ class Board:
         king_pos = self.white_king if colour == "_w" else self.black_king
 
         pinned = dict()
-        for piece in ("q" + opponent, "r" + opponent, "b" + opponent):
+        for piece in ("q", "r", "b"):
             for tx, ty in targets[piece][king_pos]:
-                if self.board[tx][ty] != piece:
+                if self.board[tx][ty] != piece + opponent:
                     continue
                 span = [self.board[sx][sy][1:] for sx, sy in targets[tx, ty][king_pos]]
                 if span.count(colour) == 1 and opponent not in span:
@@ -150,20 +151,13 @@ class Board:
     def line_of_sight(board, a, b, ignore=None):
         return all(board[x][y] == " " or (x, y) == ignore for x, y in targets[a][b])
 
-    @staticmethod
-    def next_in_line(board, paths, pos, ignore=None):
-        for path in paths:
-            position = next(((x, y) for x, y in targets[path][pos] if board[x][y] and (x, y) != ignore), None)
-            if position:
-                yield position
-
     def in_check(self, board, colour, king_pos=None, ignore=None):
 
         if king_pos is None:
             king_pos = self.white_king if colour == "_w" else self.black_king
 
-        paths = ("queen", "rook", "bishop", "n_w", f"p{colour}!")
-        return any(board[x][y][:1] == path[:1]
+        paths = ("q", "r", "b", "n", f"{colour[1]}p!")
+        return any(board[x][y][:1] == path
                    and board[x][y][1:] != colour
                    and self.line_of_sight(board, king_pos, (x, y), ignore)
                    for path in paths
@@ -184,8 +178,7 @@ class Board:
 
         copy_board[x][y] = " "
 
-        if not self.in_check(copy_board, colour, king_pos):
-            return True
+        return not self.in_check(copy_board, colour, king_pos)
 
     def exec_move(self, position, move):
         global exc_time
@@ -280,7 +273,7 @@ class Board:
         for x, y in positions:
             if self.board[x][y][1:] != colour:
                 continue
-            piece = self.board[x][y]
+            piece = self.board[x][y][0]
             for case in self.switch(piece[0]):
                 if case("b", "r", "q"):
                     moves += self.linear_moves((x, y), colour, piece)
@@ -289,9 +282,9 @@ class Board:
                     moves += [((x, y), (tx, ty)) for tx, ty in targets[piece][x, y] if self.board[tx][ty][1:] != colour]
 
                 elif case("p"):
-                    moves += [((x, y), (tx, ty)) for tx, ty in targets[piece][x, y] if
+                    moves += [((x, y), (tx, ty)) for tx, ty in targets[colour[1] + piece][x, y] if
                               self.board[tx][ty] == " " and self.line_of_sight(self.board, (x, y), (tx, ty))]
-                    moves += [((x, y), (tx, ty)) for tx, ty in targets[piece + "!"][x, y] if self.board[tx][ty][1:] == opponent or (tx, ty) == self.en_passant]
+                    moves += [((x, y), (tx, ty)) for tx, ty in targets[colour[1] + piece + "!"][x, y] if self.board[tx][ty][1:] == opponent or (tx, ty) == self.en_passant]
 
                 elif case("k"):
                     moves += [((x, y), (tx, ty)) for tx, ty in targets[piece][x, y] if
