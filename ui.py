@@ -85,11 +85,16 @@ class UIBoard(Frame):
             color = self.color1 if color == self.color2 else self.color2
             for y, sq in enumerate(row):
 
-                self.canvas.create_rectangle(self.make_rect(x, y), outline="", fill=color, tags=("button", "board"))
+                if (x, y) in self.board_obj.last_move:
+                    orange = "darkorange" if color == self.color2 else "orange"
+                    self.canvas.create_rectangle(self.make_rect(x, y), outline="", fill=orange, tags=("button", "board"))
+
+                else:
+                    self.canvas.create_rectangle(self.make_rect(x, y), outline="", fill=color, tags=("button", "board"))
+
                 color = self.color1 if color == self.color2 else self.color2
 
                 if sq != " ":
-
                     if sq == "k_w" and self.board_obj.in_check(brd, "_w", (x, y)) or sq == "k_b" and self.board_obj.in_check(brd, "_b", (x, y)):
                         self.canvas.create_rectangle(self.make_rect(x, y), outline="", fill="red", tags=("button", "board"))
 
@@ -328,6 +333,7 @@ class UIBoard(Frame):
         self.is_flipped = not self.is_flipped
         self.player_is_white = not self.player_is_white
         self.draw()
+        self.make_move()
 
     def export(self):
         output = ""
@@ -349,7 +355,7 @@ class UIBoard(Frame):
             display = threading.Thread(target=self.update_progress)
             display.start()
 
-            display.join()
+            # display.join()
 
         elif player and self.board_obj.white_move == self.player_is_white or not engine_on.get():
             self.board_obj.exec_move(position, move)
