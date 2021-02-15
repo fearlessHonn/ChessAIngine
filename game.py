@@ -6,7 +6,8 @@ Project Author: Honn
 """
 
 from pieces import *
-from dicts import *
+from data.dicts import *
+from data.conversions import *
 import math
 import copy
 from queue import Queue
@@ -28,7 +29,7 @@ class Board:
         self.no_cap = 0
         self.material_difference = 0
         self.en_passant = None
-        self.brokenCastles = {(2, 0), (6, 0), (6, 7), (2, 7)}   # Initializing it wrong, is corrected in load_fen
+        self.brokenCastles = {(2, 0), (6, 0), (6, 7), (2, 7)}  # Initializing it wrong, is corrected in load_fen
         self.last_move = (0, 0)
         self.moves = []
 
@@ -43,7 +44,7 @@ class Board:
         self.black_legal_moves = self.legal_moves_of_colour("_b")
         self.white_legal_moves = self.legal_moves_of_colour("_w")
 
-        self.cache = [[copy.deepcopy(self.board), self.material_difference, self.white_legal_moves, self.black_legal_moves, copy.deepcopy(self.brokenCastles),
+        self.cache = [[to_str(self.board), self.material_difference, self.white_legal_moves, self.black_legal_moves, list(self.brokenCastles),
                        self.en_passant, self.white_king, self.black_king, self.last_move]]
 
     def load_fen(self, fen):
@@ -175,15 +176,14 @@ class Board:
         (tx, ty) = move
         target_piece = self.board[tx][ty]
 
+        if self.board[x][y][:1] == "k":
+            king_pos = (tx, ty)
+
+        else:
+            king_pos = self.white_king if colour == "_w" else self.black_king
+
         self.board[tx][ty] = self.board[x][y]
         self.board[x][y] = " "
-
-        if self.board[x][y][:1] == "k":
-            if colour == "_w":
-                self.white_king = (tx, ty)
-
-            if colour == "_b":
-                self.black_king = (tx, ty)
 
         enpa = False
         if (tx, ty) == self.en_passant:  # en passant handling
@@ -191,7 +191,7 @@ class Board:
             self.board[tx][y] = " "
             enpa = True
 
-        check = self.in_check(self.board, colour)
+        check = self.in_check(self.board, colour, king_pos)
 
         self.board[x][y] = self.board[tx][ty]
         self.board[tx][ty] = target_piece
@@ -212,7 +212,7 @@ class Board:
         if colour == "_w" and self.white_move and (position, move) in self.white_legal_moves or colour == "_b" and not self.white_move and (
                 position, move) in self.black_legal_moves:
             self.cache.append(
-                [copy.deepcopy(self.board), self.material_difference, self.white_legal_moves, self.black_legal_moves, copy.deepcopy(self.brokenCastles),
+                [to_str(self.board), self.material_difference, self.white_legal_moves, self.black_legal_moves, list(self.brokenCastles),
                  self.en_passant, self.white_king, self.black_king, self.last_move])
 
             self.no_cap += 1
@@ -339,12 +339,12 @@ class Board:
                 return "draw"
 
     def undo_move(self):
-        self.board = self.cache[-1][0]
+        self.board = to_lst(self.cache[-1][0])
         self.material_difference = self.cache[-1][1]
         self.white_move = not self.white_move
         self.white_legal_moves = self.cache[-1][2]
         self.black_legal_moves = self.cache[-1][3]
-        self.brokenCastles = self.cache[-1][4]
+        self.brokenCastles = set(self.cache[-1][4])
         self.en_passant = self.cache[-1][5]
         self.white_king = self.cache[-1][6]
         self.black_king = self.cache[-1][7]
