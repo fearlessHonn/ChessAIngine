@@ -12,7 +12,6 @@ import copy
 from queue import Queue
 
 targets = init_targets()
-player_moved = False
 q = Queue()
 
 
@@ -29,7 +28,7 @@ class Board:
         self.no_cap = 0
         self.material_difference = 0
         self.en_passant = None
-        self.brokenCastles = set()
+        self.brokenCastles = {(2, 0), (6, 0), (6, 7), (2, 7)}   # Initializing it wrong, is corrected in load_fen
         self.last_move = (0, 0)
         self.moves = []
 
@@ -48,7 +47,6 @@ class Board:
                        self.en_passant, self.white_king, self.black_king, self.last_move]]
 
     def load_fen(self, fen):
-        self.board = [[" "] * 8 for _ in range(8)]
         x = 0
         y = 0
         for num, position in enumerate(fen):
@@ -71,7 +69,6 @@ class Board:
 
             elif position == " ":
                 self.white_move = bool(fen[num + 1] == "w")
-                self.brokenCastles.update([(2, 0), (6, 0), (6, 7), (2, 7)])
                 for num2, position2 in enumerate(fen[(num + 3):]):
                     if position2 == "-":
                         continue
@@ -138,10 +135,6 @@ class Board:
             output += "+"
 
         return output
-
-    @staticmethod
-    def line_of_sight(board, a, b, ignore=None):
-        return all(board[x][y] == " " or (x, y) == ignore for x, y in targets[a][b])
 
     def in_check(self, board, colour, king_pos=None):
         if king_pos is None:
@@ -216,64 +209,63 @@ class Board:
         (new_x, new_y) = move
         tg_pc = self.board[new_x][new_y]
 
-        if position != move:
-            if colour == "_w" and self.white_move and (position, move) in self.white_legal_moves or colour == "_b" and not self.white_move and (
-                    position, move) in self.black_legal_moves:
-                self.cache.append(
-                    [copy.deepcopy(self.board), self.material_difference, self.white_legal_moves, self.black_legal_moves, copy.deepcopy(self.brokenCastles),
-                     self.en_passant, self.white_king, self.black_king, self.last_move])
+        if colour == "_w" and self.white_move and (position, move) in self.white_legal_moves or colour == "_b" and not self.white_move and (
+                position, move) in self.black_legal_moves:
+            self.cache.append(
+                [copy.deepcopy(self.board), self.material_difference, self.white_legal_moves, self.black_legal_moves, copy.deepcopy(self.brokenCastles),
+                 self.en_passant, self.white_king, self.black_king, self.last_move])
 
-                self.no_cap += 1
+            self.no_cap += 1
 
-                if piece == "p_w":
-                    if new_y == 0:
-                        self.board[x][y] = "q_w"
+            if piece == "p_w":
+                if new_y == 0:
+                    self.board[x][y] = "q_w"
 
-                if piece == "p_b":
-                    if new_y == 7:
-                        self.board[x][y] = "q_b"
+            if piece == "p_b":
+                if new_y == 7:
+                    self.board[x][y] = "q_b"
 
-                if self.board[new_x][new_y] != " " or piece[:1] == "p":
-                    self.no_cap = 0
+            if self.board[new_x][new_y] != " " or piece[:1] == "p":
+                self.no_cap = 0
 
-                self.material_difference -= material[self.board[new_x][new_y]]
+            self.material_difference -= material[self.board[new_x][new_y]]
 
-                self.board[new_x][new_y] = self.board[x][y]
-                self.board[x][y] = " "
+            self.board[new_x][new_y] = self.board[x][y]
+            self.board[x][y] = " "
 
-                self.brokenCastles.update(targets["breakCastle"][x, y])
+            self.brokenCastles.update(targets["breakCastle"][x, y])
 
-                if piece[:1] == "k":  # castling handling
-                    if abs(new_x - x) == 2:
-                        self.board[round((new_x + x) / 2)][y] = self.board[round(- math.sqrt(new_x - 2) / 2)][y]
-                        self.board[round(- math.sqrt(new_x - 2) / 2)][y] = " "
+            if piece[:1] == "k":  # castling handling
+                if abs(new_x - x) == 2:
+                    self.board[round((new_x + x) / 2)][y] = self.board[round(- math.sqrt(new_x - 2) / 2)][y]
+                    self.board[round(- math.sqrt(new_x - 2) / 2)][y] = " "
 
-                    if colour == "_w":
-                        self.white_king = (new_x, new_y)
+                if colour == "_w":
+                    self.white_king = (new_x, new_y)
 
-                    if colour == "_b":
-                        self.black_king = (new_x, new_y)
+                if colour == "_b":
+                    self.black_king = (new_x, new_y)
 
-                if (new_x, new_y) == self.en_passant:  # en passant handling
-                    self.material_difference -= 1
-                    self.board[new_x][y] = " "
+            if (new_x, new_y) == self.en_passant:  # en passant handling
+                self.material_difference -= 1
+                self.board[new_x][y] = " "
 
-                self.en_passant = None
-                if piece[:1] == "p" and abs(new_y - y) == 2:
-                    self.en_passant = (new_x, (new_y + y) / 2)
+            self.en_passant = None
+            if piece[:1] == "p" and abs(new_y - y) == 2:
+                self.en_passant = (new_x, (new_y + y) / 2)
 
-                self.white_move = not self.white_move
+            self.white_move = not self.white_move
 
-                self.white_check = self.in_check(self.board, "_w", self.white_king)
-                self.black_check = self.in_check(self.board, "_b", self.black_king)
+            self.white_check = self.in_check(self.board, "_w", self.white_king)
+            self.black_check = self.in_check(self.board, "_b", self.black_king)
 
-                self.white_legal_moves = self.legal_moves_of_colour("_w")
-                self.black_legal_moves = self.legal_moves_of_colour("_b")
+            self.white_legal_moves = self.legal_moves_of_colour("_w")
+            self.black_legal_moves = self.legal_moves_of_colour("_b")
 
-                self.last_move = ((x, y), (new_x, new_y))
-                self.moves.append(self.convert_to_pgn((new_x, new_y), (x, y), tg_pc, colour, piece))
+            self.last_move = ((x, y), (new_x, new_y))
+            self.moves.append(self.convert_to_pgn((new_x, new_y), (x, y), tg_pc, colour, piece))
 
-                return True
+            return True
 
     def linear_moves(self, position, colour, piece):
         for path in targets[piece]["paths"]:
@@ -283,52 +275,46 @@ class Board:
                 if self.board[x][y] != " ":
                     break
 
-    @staticmethod
-    def switch(v):
-        yield lambda *c: v in c
-
     def legal_moves_of_colour(self, colour):
-
-        moves = []
+        moves = set()
         opponent = "_b" if colour == "_w" else "_w"
 
         for x, y in positions:
             if self.board[x][y][1:] != colour:
                 continue
             piece = self.board[x][y][0]
-            for case in self.switch(piece[0]):
-                if case("b", "r", "q"):
-                    moves += self.linear_moves((x, y), colour, piece)
+            if piece in ("b", "r", "q"):
+                moves.update(self.linear_moves((x, y), colour, piece))
 
-                elif case("n"):
-                    moves += [((x, y), (tx, ty)) for tx, ty in targets[piece][x, y] if self.board[tx][ty][1:] != colour]
+            elif piece == "n":
+                moves.update({((x, y), (tx, ty)) for tx, ty in targets[piece][x, y] if self.board[tx][ty][1:] != colour})
 
-                elif case("p"):
-                    moves += [((x, y), (tx, ty)) for tx, ty in targets[colour[1] + piece][x, y] if
-                              self.board[tx][ty] == " " and self.board[x][round((y + ty) / 2)] in ("p" + colour, " ")]
-                    moves += [((x, y), (tx, ty)) for tx, ty in targets[colour[1] + piece + "!"][x, y] if
-                              self.board[tx][ty][1:] == opponent or (tx, ty) == self.en_passant]
+            elif piece == "p":
+                moves.update({((x, y), (tx, ty)) for tx, ty in targets[colour[1] + piece][x, y] if
+                              self.board[tx][ty] == " " and self.board[x][round((y + ty) / 2)] in ("p" + colour, " ")})
+                moves.update({((x, y), (tx, ty)) for tx, ty in targets[colour[1] + piece + "!"][x, y] if
+                              self.board[tx][ty][1:] == opponent or (tx, ty) == self.en_passant})
 
-                elif case("k"):
-                    moves += [((x, y), (tx, ty)) for tx, ty in targets[piece][x, y] if
-                              self.board[tx][ty][1:] != colour and not self.in_check(self.board, colour, (tx, ty))]
-                    if self.black_check and colour == "_b" or self.white_check and colour == "_w":
-                        continue
-                    moves += [((x, y), (tx, ty)) for tx, ty in targets[colour[1:] + "castle"][x, y]
+            elif piece == "k":
+                moves.update({((x, y), (tx, ty)) for tx, ty in targets[piece][x, y] if
+                              self.board[tx][ty][1:] != colour and not self.in_check(self.board, colour, (tx, ty))})
+                if self.black_check and colour == "_b" or self.white_check and colour == "_w":
+                    continue
+                moves.update({((x, y), (tx, ty)) for tx, ty in targets[colour[1:] + "castle"][x, y]
                               if self.board[tx][ty] == " "
                               and self.board[int((tx + x) / 2)][ty] == " "
                               and self.board[tx - 1][ty] in (" ", "r" + colour)
                               and not self.in_check(self.board, colour, (tx, ty))
                               and not self.in_check(self.board, colour, targets[x, y][tx, ty][0])
-                              and not (tx, ty) in self.brokenCastles]
+                              and not (tx, ty) in self.brokenCastles})
 
         pinned = self.pinned_positions(colour)
         if pinned:
             king_pos = self.white_king if colour == "_w" else self.black_king
-            moves = [(p, t) for p, t in moves if p not in pinned or t == pinned[p] or t in targets[king_pos][pinned[p]]]
+            moves = {(p, t) for p, t in moves if p not in pinned or t == pinned[p] or t in targets[king_pos][pinned[p]]}
 
         if self.black_check and colour == "_b" or self.white_check and colour == "_w":
-            moves = [(p, t) for p, t in moves if self.allowed_move(p, t, colour)]
+            moves = {(p, t) for p, t in moves if self.allowed_move(p, t, colour)}
 
         return moves
 
