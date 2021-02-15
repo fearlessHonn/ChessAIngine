@@ -329,7 +329,7 @@ class UIBoard(Frame):
             cache_depth = 0
 
         elif abs(cd) < len(self.board_obj.cache):
-            display_board = self.board_obj.cache[cd][0]
+            display_board = to_lst(self.board_obj.cache[cd][0])
             self.draw(display_board)
             cache_depth = cd
 
