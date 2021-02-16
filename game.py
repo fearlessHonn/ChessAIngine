@@ -50,7 +50,8 @@ class Board:
     def load_fen(self, fen):
         x = 0
         y = 0
-        for num, position in enumerate(fen):
+        fen_list = fen.split()
+        for position in fen_list[0]:
             if position.isalpha():
                 if position == "k":
                     self.black_king = (x, y)
@@ -68,28 +69,21 @@ class Board:
             elif position.isnumeric():
                 x += int(position)
 
-            elif position == " ":
-                self.white_move = bool(fen[num + 1] == "w")
-                for num2, position2 in enumerate(fen[(num + 3):]):
-                    if position2 == "-":
-                        continue
+        if "K" in fen_list[2]:
+            self.brokenCastles.remove((6, 7))
 
-                    if position2 == "K":
-                        self.brokenCastles.remove((6, 7))
+        if "k" in fen_list[2]:
+            self.brokenCastles.remove((6, 0))
 
-                    if position2 == "k":
-                        self.brokenCastles.remove((6, 0))
+        if "Q" in fen_list[2]:
+            self.brokenCastles.remove((2, 7))
 
-                    if position2 == "Q":
-                        self.brokenCastles.remove((2, 7))
+        if "q" in fen_list[2]:
+            self.brokenCastles.remove((2, 0))
 
-                    if position2 == "q":
-                        self.brokenCastles.remove((2, 0))
-
-                    if position2 == " ":
-                        self.en_passant = None if fen[num + 4 + num2] == "-" else (reverse_acn[fen[num + 4 + num2]], 8 - int(fen[num + 5 + num2]))
-                        break
-                break
+        self.white_move = bool(fen_list[1] == "w")
+        self.en_passant = None if fen_list[3] == "-" else int(fen_list[3])
+        self.no_cap = int(fen_list[4])
 
     def pinned_positions(self, colour):
         opponent = "_b" if colour == "_w" else "_w"
