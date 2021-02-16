@@ -8,12 +8,14 @@ Project Author: Honn
 from pieces import *
 from data.dicts import *
 from data.conversions import *
+from data.export import *
 import math
 import copy
 from queue import Queue
 
 targets = init_targets()
 q = Queue()
+table = {}
 
 
 def convert_to_acn(coord):
@@ -39,7 +41,7 @@ class Board:
         self.white_king = None
         self.black_king = None
 
-        self.load_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")  # rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
+        self.load_fen("7r/8/1kp2R1n/3p3p/8/2PK1P1P/4R1r1/8 b - - 7 36")  # rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
 
         self.black_legal_moves = self.legal_moves_of_colour("_b")
         self.white_legal_moves = self.legal_moves_of_colour("_w")
@@ -152,9 +154,10 @@ class Board:
             for x, y in targets[path][king_pos]:
                 if board[x][y][1:] == colour:
                     break
-
                 elif board[x][y][:1] in paths_dict[path]:
                     return True
+                elif board[x][y] != " ":
+                    break
 
         for x, y in targets["n"][king_pos]:
             if board[x][y][1:] == opponent:
@@ -252,6 +255,16 @@ class Board:
 
             self.white_check = self.in_check(self.board, "_w", self.white_king)
             self.black_check = self.in_check(self.board, "_b", self.black_king)
+
+            # Dead Idea, might revisit later
+            #   key = (to_str(self.board), str(self.en_passant), str(self.brokenCastles))
+            #   if key in table.keys():
+            #       (self.white_legal_moves, self.black_legal_moves, self.white_check, self.black_check) = table[key]
+
+            #   else:
+            #       self.white_legal_moves = self.legal_moves_of_colour("_w")
+            #       self.black_legal_moves = self.legal_moves_of_colour("_b")
+            #       table[key] = (self.white_legal_moves, self.black_legal_moves, self.white_check, self.black_check)
 
             self.white_legal_moves = self.legal_moves_of_colour("_w")
             self.black_legal_moves = self.legal_moves_of_colour("_b")
@@ -379,7 +392,6 @@ def engine(board_obj, depth):
     legal_moves = board_obj.sort_moves(board_obj.black_legal_moves) if not colour else board_obj.sort_moves(board_obj.white_legal_moves)
 
     for num, (pos, move) in enumerate(legal_moves):
-
         if not board_obj.exec_move(pos, move):
             print("NOOOPE" + str(num))
             continue
@@ -458,9 +470,14 @@ scores = {
 if __name__ == "__main__":
     my_board = Board()
     i = 0
-    while i < 10:
+    while not my_board.game_end():
+        print(i)
         i += 1
         eng_board = copy.deepcopy(my_board)
         (eng_pos, eng_move), score = engine(eng_board, 3)
         my_board.exec_move(eng_pos, eng_move)
         del eng_board
+
+    print(my_board.game_end())
+    print(my_board.board)
+    print(export_pgn(my_board))
