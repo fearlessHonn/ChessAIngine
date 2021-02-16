@@ -150,7 +150,8 @@ class UIBoard(Frame):
             self.canvas.create_image(self.make_center(x, y), image=self.imgs_dict[show_board[x][y]], tags="highl")
 
             if show_board[x][y][1:] == "_w" and self.board_obj.white_move or show_board[x][y][1:] == "_b" and not self.board_obj.white_move:
-                for item in self.board_obj.legal_moves_of_colour(show_board[x][y][1:]):
+                legal_moves = self.board_obj.white_legal_moves if show_board[x][y][1:] == "_w" else self.board_obj.black_legal_moves
+                for item in legal_moves:
                     if item[0] == (7 - x, 7 - y) and self.is_flipped or item[0] == (x, y) and not self.is_flipped:
                         (tx, ty) = item[1]
                         if self.is_flipped:
@@ -340,14 +341,7 @@ class UIBoard(Frame):
         self.make_move()
 
     def export(self):
-        output = ""
-        for i in range(math.ceil(len(self.board_obj.moves) / 2)):
-            try:
-                output += f"{i + 1}. {self.board_obj.moves[2 * i]} {self.board_obj.moves[2 * i + 1]} \n"
-            except IndexError:
-                output += f"{i + 1}. {self.board_obj.moves[2 * i]}"
-
-        print(output)
+        print(export_pgn(self.board_obj))
 
     def make_move(self, player=False, position=None, move=None):
         if not player and (engine_on.get() and self.board_obj.white_move != self.player_is_white or ccc.get()):
@@ -366,6 +360,7 @@ class UIBoard(Frame):
 
         self.draw()
         if self.board_obj.game_end():
+            print("END")
             return False
 
         elif ccc.get() or engine_on.get() and player:

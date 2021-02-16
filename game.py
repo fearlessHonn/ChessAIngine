@@ -41,7 +41,7 @@ class Board:
         self.white_king = None
         self.black_king = None
 
-        self.load_fen("7r/8/1kp2R1n/3p3p/8/2PK1P1P/4R1r1/8 b - - 7 36")  # rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
+        self.load_fen("r1bq1b1r/ppppkBpp/2n5/4p1N1/4n3/8/PPPP1PPP/RNBQK2R w KQ - 1 6")  # rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
 
         self.black_legal_moves = self.legal_moves_of_colour("_b")
         self.white_legal_moves = self.legal_moves_of_colour("_w")
@@ -167,6 +167,11 @@ class Board:
         for x, y in targets[f"{colour[1]}p!"][king_pos]:
             if board[x][y] == "p" + opponent:
                 return True
+
+        for x, y in targets["k"][king_pos]:
+            if board[x][y][1:] == opponent:
+                if board[x][y][:1] == "k":
+                    return True
 
     def allowed_move(self, pos, move, colour):
         (x, y) = pos
@@ -410,8 +415,9 @@ def engine(board_obj, depth):
 
 
 def minimax(board, depth, is_max, alpha, beta):
-    if board.game_end():
-        return scores[board.game_end()]
+    result = board.game_end()
+    if result:
+        return scores[result] * depth
 
     if depth == 0:
         return evaluation(board)
@@ -437,6 +443,7 @@ def minimax(board, depth, is_max, alpha, beta):
     else:
         max_score = math.inf
         for numi, (pos, move) in enumerate(board.sort_moves(board.black_legal_moves)):
+
             if not board.exec_move(pos, move):
                 continue
 
@@ -455,7 +462,7 @@ def minimax(board, depth, is_max, alpha, beta):
 def evaluation(board):
     eval_score = board.material_difference
 
-    if not board.black_check or board.white_check:
+    if not(board.black_check or board.white_check):
         eval_score += 0.1 * (len(board.white_legal_moves) - len(board.black_legal_moves))
 
     return eval_score
@@ -474,7 +481,7 @@ if __name__ == "__main__":
         print(i)
         i += 1
         eng_board = copy.deepcopy(my_board)
-        (eng_pos, eng_move), score = engine(eng_board, 3)
+        (eng_pos, eng_move), score = engine(eng_board, 4)
         my_board.exec_move(eng_pos, eng_move)
         del eng_board
 
