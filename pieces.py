@@ -41,9 +41,9 @@ def init_targets():
 
     targets["bp"] = {(x, y): valid([(x, y + 1)] * (y > 0) + [(x, y + 2)] * (y == 1)) for x, y in positions}
 
-    targets["wp!"] = {(x, y): valid([(x + 1, y - 1), (x - 1, y - 1)] * (y < 7)) for x, y in positions}
+    targets["wp!"] = {(x, y): valid([(x + 1, y - 1), (x - 1, y - 1)] * (y <= 7)) for x, y in positions}
 
-    targets["bp!"] = {(x, y): valid([(x + 1, y + 1), (x - 1, y + 1)] * (y > 0)) for x, y in positions}
+    targets["bp!"] = {(x, y): valid([(x + 1, y + 1), (x - 1, y + 1)] * (y >= 0)) for x, y in positions}
 
     targets["bcastle"] = defaultdict(list, {(4, 0): [(2, 0), (6, 0)]})
     targets["wcastle"] = defaultdict(list, {(4, 7): [(2, 7), (6, 7)]})
@@ -65,5 +65,8 @@ def init_targets():
             for i, (tx, tc) in enumerate(path):
                 targets[(x, y)][tx, tc] = path[:i]
 
-    # print(targets)
     return targets
+
+
+if __name__ == "__main__":
+    init_targets()
